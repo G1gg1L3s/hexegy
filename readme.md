@@ -14,13 +14,13 @@ I don't plan to publish it on `crates.io`, but if you are interested in using it
 Encode from the stdin:
 
 ```console
-$ openssl rand 16 | hexegy`
+$ openssl rand 16 | hexegy
 ```
 
 Encode from files:
 
 ```console
-$ hexegy a.txt b.txt c.txt`
+$ hexegy a.txt b.txt c.txt
 ```
 
 Note that `-` file is stdin.
@@ -29,12 +29,12 @@ Note that `-` file is stdin.
 
 From the stdin:
 ```console
-$ echo "44676402" | hexegy -d`
+$ echo "44676402" | hexegy -d
 ```
 
 From a file:
 ```console
-$ hexegy -d a.txt`
+$ hexegy -d a.txt
 ```
 
 ### Additional flags
@@ -42,7 +42,7 @@ $ hexegy -d a.txt`
 Wrap lines after some number of bytes: `-w` or `--wrap`
 
 ```console
-$ hexegy -w 16 < /dev/urandom | head`
+$ hexegy -w 16 < /dev/urandom | head
 ```
 
 Ignore whitespaces when decoding: `-i` or `--ignore-whitespaces`.
