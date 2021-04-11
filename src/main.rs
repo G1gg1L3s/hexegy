@@ -112,11 +112,11 @@ impl App {
 
     /// Writes byte to stdout and wraps line if needed
     fn write(&mut self, out: &mut Stdout, c: u8) -> Result<(), io::Error> {
-        write!(out, "{}", c as char)?;
+        write!(out, "{:02x}", c)?;
         self.column += 1;
         if self.column == self.wrap_size {
             self.column = 0;
-            println!();
+            writeln!(out)?;
         }
         Ok(())
     }
@@ -126,10 +126,7 @@ impl App {
         let mut out = io::stdout();
         for byte in src.bytes() {
             let byte = byte?;
-            let lo = to_hex_digit(byte & 0b111).unwrap();
-            let hi = to_hex_digit(byte >> 4).unwrap();
-            self.write(&mut out, hi)?;
-            self.write(&mut out, lo)?;
+            self.write(&mut out, byte)?;
         }
         Ok(())
     }

@@ -30,7 +30,7 @@ pub fn create_app<'a, 'b>() -> App<'a, 'b> {
         )
         .arg(
             Arg::with_name("WRAP")
-            .help("wrap encoded lines after number of character (default is 0 which indicates no wrapping).")
+            .help("wrap encoded lines after number of bytes (2 characters). Default is 0, which indicates no wrapping.")
             .long("wrap")
             .short("w")
             .takes_value(true)
