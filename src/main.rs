@@ -8,6 +8,24 @@ use anyhow::anyhow;
 
 mod cli;
 
+// A trait for better error handling.
+// I want to use app with unix pipes, so I want to filter errors with broken ones
+// to create better user experience.
+trait FilterBrokenPipe {
+    fn filter_broken_pipe(self) -> Result<(), anyhow::Error>;
+}
+
+impl FilterBrokenPipe for anyhow::Error {
+    fn filter_broken_pipe(self) -> Result<(), anyhow::Error> {
+        let err = self.downcast::<io::Error>()?;
+        if err.kind() == ErrorKind::BrokenPipe {
+            Ok(())
+        } else {
+            Err(err.into())
+        }
+    }
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let matches = cli::create_app().get_matches();
 
@@ -40,18 +58,19 @@ fn main() -> Result<(), Box<dyn Error>> {
             app.encode_src(&mut src)
         };
 
-        // I want to use this app with pipes, so if we encourted broken one,
-        // then return with Ok
         if let Err(err) = err {
-            if let Some(err) = err.downcast_ref::<io::Error>() {
-                if err.kind() == ErrorKind::BrokenPipe {
-                    return Ok(());
-                }
-            }
-            return Err(err.into());
+            err.filter_broken_pipe()?;
         }
     }
-    println!();
+    // for better ux we should append a newline to the end of our stream if we were encoding
+    // so we check the last byte if the newline is already output.
+    if let Some(b) = app.out.buffer().last() {
+        if !decode && *b != b'\n' {
+            if let Err(err) = writeln!(app.out) {
+                anyhow::Error::from(err).filter_broken_pipe()?;
+            }
+        }
+    }
     Ok(())
 }
 
@@ -60,29 +79,28 @@ struct App {
     ignore_ws: bool, // flag which is used during the encoding
     wrap_size: usize,
     column: usize, // current column in a line, if we want to wrap
+    out: BufWriter<Stdout>,
 }
 
 /// Abstraction which helps us turn byte stream into stream, which buffers first char
 /// and decodes byte if the second comes up
 struct HexDecoder {
-    out: BufWriter<Stdout>,
     last: Option<u8>,
 }
 
 impl HexDecoder {
     fn new() -> Self {
-        let out = BufWriter::new(io::stdout());
-        Self { out, last: None }
+        Self { last: None }
     }
 
-    fn write(&mut self, digit: u8) -> Result<(), io::Error> {
+    fn write(&mut self, out: &mut impl Write, digit: u8) -> Result<(), io::Error> {
         match self.last.take() {
             Some(hi) => {
                 // we can safely unwrap because we already check if this is valid digit
                 let hi = from_hex_digit(hi).unwrap();
                 let lo = from_hex_digit(digit).unwrap();
                 let byte = hi * 16 + lo;
-                self.out.write(&[byte])?;
+                out.write(&[byte])?;
             }
             None => {
                 self.last.replace(digit);
@@ -103,36 +121,37 @@ impl HexDecoder {
 
 impl App {
     fn new(ignore_ws: bool, wrap_size: usize) -> Self {
+        let out = BufWriter::new(io::stdout());
         Self {
             ignore_ws,
             wrap_size,
             column: 0,
+            out,
         }
     }
 
     /// Writes byte to stdout and wraps line if needed
-    fn write(&mut self, out: &mut Stdout, c: u8) -> Result<(), io::Error> {
-        write!(out, "{:02x}", c)?;
+    fn write(&mut self, c: u8) -> Result<(), io::Error> {
+        write!(self.out, "{:02x}", c)?;
         self.column += 1;
         if self.column == self.wrap_size {
             self.column = 0;
-            writeln!(out)?;
+            writeln!(self.out)?;
         }
         Ok(())
     }
 
     /// Main encoding function
     fn encode_src(&mut self, src: &mut dyn io::Read) -> anyhow::Result<()> {
-        let mut out = io::stdout();
         for byte in src.bytes() {
             let byte = byte?;
-            self.write(&mut out, byte)?;
+            self.write(byte)?;
         }
         Ok(())
     }
 
     /// Main decoding function
-    fn decode_src(&self, src: &mut dyn io::Read) -> anyhow::Result<()> {
+    fn decode_src(&mut self, src: &mut dyn io::Read) -> anyhow::Result<()> {
         let mut decoder = HexDecoder::new();
         for digit in src.bytes() {
             let digit = digit?;
@@ -143,7 +162,7 @@ impl App {
             if !digit.is_ascii_hexdigit() {
                 return Err(anyhow!("not ascii hexdigit: {:?}", digit as char));
             }
-            decoder.write(digit)?;
+            decoder.write(&mut self.out, digit)?;
         }
         decoder.finish()
     }
@@ -155,15 +174,5 @@ fn from_hex_digit(x: u8) -> Option<u8> {
         b'a'..=b'f' => Some(x - b'a' + 10),
         b'A'..=b'F' => Some(x - b'A' + 10),
         _ => None,
-    }
-}
-
-const DIGITS: &[u8] = b"0123456789abcdef";
-
-fn to_hex_digit(x: u8) -> Option<u8> {
-    if x <= 0xf {
-        Some(DIGITS[x as usize])
-    } else {
-        None
     }
 }
