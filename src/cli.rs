@@ -18,13 +18,13 @@ pub fn create_app<'a, 'b>() -> App<'a, 'b> {
         )
         .arg(
             Arg::with_name("DECODE")
-                .help("decode data")
+                .help("Decode data")
                 .long("decode")
                 .short("d"),
         )
         .arg(
             Arg::with_name("WS")
-                .help("ignore whitespaces")
+                .help("Ignore whitespaces. By default only newlines ('\\n') are ignored.")
                 .long("ignore-whitespaces")
                 .short("i"),
         )
