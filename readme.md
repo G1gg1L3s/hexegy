@@ -2,38 +2,52 @@
 
 Hex encoded/decode data and print to standard output.
 
-I've implemented this because I need tool to convert to/from hex easily, and I always forgot what flags of `od`.
+This is minimal CLI utility which I created only for myself, because I need a simple tool to convert to/from hex easily in command line, and I always forgot what `od` flags or any other utility should I use.
+
+I don't plan to publish it on `crates.io` but if you are interested in using it or contributing to it please let me know :).
+
 
 ## Usage
 
 ### Encoding
 
-Encode from stdin:
+Encode from the stdin:
 
-`$ hexegy`
+```console
+$ openssl rand 16 | hexegy`
+```
 
 Encode from files:
 
-`$ hexegy a.txt b.txt c.txt`
+```console
+$ hexegy a.txt b.txt c.txt`
+```
 
 Note that `-` file is stdin.
 
 ### Decoding
 
-From stdin:
+From the stdin:
+```console
+$ echo "44676402" | hexegy -d`
+```
 
-`$ echo "44676402" | hexegy -d`
-
-From file:
-`$ hexegy -d a.txt`
+From a file:
+```console
+$ hexegy -d a.txt`
+```
 
 ### Additional flags
 
-Wrap lines when encoding: `-w` or `--wrap`
+Wrap lines after some number of bytes: `-w` or `--wrap`
 
-`$ hexegy -w 16 < /dev/urandom | head `
+```console
+$ hexegy -w 16 < /dev/urandom | head`
+```
 
-Ignore whitespaces when decoding: `-i` or `--ignore-whitespaces`
-By default only newlines ('\n') are ignored.
+Ignore whitespaces when decoding: `-i` or `--ignore-whitespaces`.
+By default, only newlines `'\n'` are ignored.
 
-`$ echo "4467 64" | hexegy -d -i`
+```console
+$ echo "4467 64" | hexegy -d -i
+```
