@@ -37,5 +37,11 @@ pub fn create_app<'a, 'b>() -> App<'a, 'b> {
             .validator(|x| {
                 x.parse::<usize>().map(|_| ()).map_err(|err| err.to_string())
             })
+        ).arg(
+            Arg::with_name("PREFIX")
+            .help("the prefix that is printed before each byte while encoding. By default is none.")
+            .long("prefix")
+            .short("p")
+            .takes_value(true)
         )
 }

@@ -42,7 +42,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         .map(str::parse)
         .map(Result::unwrap)
         .unwrap_or(0);
-    let mut app = App::new(ignore_ws, wrap_size);
+    let prefix = matches.value_of("PREFIX").unwrap_or("").to_string();
+    let mut app = App::new(ignore_ws, wrap_size, prefix);
 
     for src in sources {
         let src: Box<dyn Read> = if src == "-" {
@@ -79,6 +80,7 @@ struct App {
     ignore_ws: bool, // flag which is used during the encoding
     wrap_size: usize,
     column: usize, // current column in a line, if we want to wrap
+    prefix: String,
     out: BufWriter<Stdout>,
 }
 
@@ -120,19 +122,20 @@ impl HexDecoder {
 }
 
 impl App {
-    fn new(ignore_ws: bool, wrap_size: usize) -> Self {
+    fn new(ignore_ws: bool, wrap_size: usize, prefix: String) -> Self {
         let out = BufWriter::new(io::stdout());
         Self {
             ignore_ws,
             wrap_size,
             column: 0,
             out,
+            prefix,
         }
     }
 
     /// Writes byte to stdout and wraps line if needed
     fn write(&mut self, c: u8) -> Result<(), io::Error> {
-        write!(self.out, "{:02x}", c)?;
+        write!(self.out, "{}{:02x}", self.prefix, c)?;
         self.column += 1;
         if self.column == self.wrap_size {
             self.column = 0;
