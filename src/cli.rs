@@ -30,7 +30,7 @@ pub fn create_app<'a, 'b>() -> App<'a, 'b> {
         )
         .arg(
             Arg::with_name("WRAP")
-            .help("wrap encoded lines after number of bytes (2 characters). Default is 0, which indicates no wrapping.")
+            .help("Wrap encoded lines after number of bytes (2 characters). Default is 0, which indicates no wrapping.")
             .long("wrap")
             .short("w")
             .takes_value(true)
@@ -39,9 +39,14 @@ pub fn create_app<'a, 'b>() -> App<'a, 'b> {
             })
         ).arg(
             Arg::with_name("PREFIX")
-            .help("the prefix that is printed before each byte while encoding. By default is none.")
+            .help("The prefix that is printed before each byte while encoding. By default is none.")
             .long("prefix")
             .short("p")
+            .takes_value(true)
+        )
+        .arg(
+            Arg::with_name("STRING")
+            .help("Encode/Decode data directly from a string")
             .takes_value(true)
         )
 }

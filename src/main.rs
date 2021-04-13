@@ -32,7 +32,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     let sources = if let Some(values) = matches.values_of("FILE") {
         values.collect()
     } else {
-        vec!["-"]
+        // if we have string from argument, we don't need to read from stdin
+        if matches.is_present("STRING") {
+            vec![]
+        } else {
+            vec!["-"]
+        }
     };
 
     let decode = matches.is_present("DECODE");
@@ -45,6 +50,26 @@ fn main() -> Result<(), Box<dyn Error>> {
     let prefix = matches.value_of("PREFIX").unwrap_or("").to_string();
     let mut app = App::new(ignore_ws, wrap_size, prefix);
 
+    // decodes or encodes source
+    let mut process_src = |src: &mut dyn io::Read| -> Result<(), anyhow::Error> {
+        let err = if decode {
+            app.decode_src(src)
+        } else {
+            app.encode_src(src)
+        };
+
+        if let Err(err) = err {
+            err.filter_broken_pipe()?;
+        }
+        Ok(())
+    };
+
+    // first check if we have argument string to encode/decode
+    if let Some(string) = matches.value_of("STRING") {
+        let mut string = io::Cursor::new(string);
+        process_src(&mut string)?;
+    }
+
     for src in sources {
         let src: Box<dyn Read> = if src == "-" {
             Box::new(io::stdin())
@@ -52,16 +77,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             Box::new(File::open(src)?)
         };
         let mut src = BufReader::new(src);
-
-        let err = if decode {
-            app.decode_src(&mut src)
-        } else {
-            app.encode_src(&mut src)
-        };
-
-        if let Err(err) = err {
-            err.filter_broken_pipe()?;
-        }
+        process_src(&mut src)?;
     }
     // for better ux we should append a newline to the end of our stream if we were encoding
     // so we check the last byte if the newline is already output.
