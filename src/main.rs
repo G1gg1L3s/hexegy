@@ -1,4 +1,4 @@
-use std::{error::Error, fs::File, io};
+use std::{fs::File, io};
 use std::{
     io::{BufReader, BufWriter, ErrorKind, Read, Stdout, Write},
     usize,
@@ -12,21 +12,29 @@ mod cli;
 // I want to use app with unix pipes, so I want to filter errors with broken ones
 // to create better user experience.
 trait FilterBrokenPipe {
-    fn filter_broken_pipe(self) -> Result<(), anyhow::Error>;
+    fn filter_broken_pipe(self) -> anyhow::Result<()>;
 }
 
-impl FilterBrokenPipe for anyhow::Error {
-    fn filter_broken_pipe(self) -> Result<(), anyhow::Error> {
-        let err = self.downcast::<io::Error>()?;
-        if err.kind() == ErrorKind::BrokenPipe {
-            Ok(())
-        } else {
-            Err(err.into())
+impl<E> FilterBrokenPipe for anyhow::Result<(), E>
+where
+    E: Into<anyhow::Error>,
+{
+    fn filter_broken_pipe(self) -> anyhow::Result<()> {
+        match self {
+            Ok(ok) => Ok(ok),
+            Err(err) => {
+                let err = err.into().downcast::<io::Error>()?;
+                if err.kind() == ErrorKind::BrokenPipe {
+                    Ok(())
+                } else {
+                    Err(err.into())
+                }
+            }
         }
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let matches = cli::create_app().get_matches();
 
     let sources = if let Some(values) = matches.values_of("FILE") {
@@ -42,11 +50,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let decode = matches.is_present("DECODE");
     let ignore_ws = matches.is_present("WS");
-    let wrap_size = matches
-        .value_of("WRAP")
-        .map(str::parse)
-        .map(Result::unwrap)
-        .unwrap_or(0);
+
+    // can unwrap, because it is already checked
+    let wrap_size = matches.value_of("WRAP").map_or(0, |x| x.parse().unwrap());
     let prefix = matches.value_of("PREFIX").unwrap_or("").to_string();
     let mut app = App::new(ignore_ws, wrap_size, prefix);
 
@@ -58,10 +64,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             app.encode_src(src)
         };
 
-        if let Err(err) = err {
-            err.filter_broken_pipe()?;
-        }
-        Ok(())
+        err.filter_broken_pipe()
     };
 
     // first check if we have argument string to encode/decode
@@ -83,9 +86,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // so we check the last byte if the newline is already output.
     if let Some(b) = app.out.buffer().last() {
         if !decode && *b != b'\n' {
-            if let Err(err) = writeln!(app.out) {
-                anyhow::Error::from(err).filter_broken_pipe()?;
-            }
+            writeln!(app.out).filter_broken_pipe()?;
         }
     }
     Ok(())
@@ -100,8 +101,8 @@ struct App {
     out: BufWriter<Stdout>,
 }
 
-/// Abstraction which helps us turn byte stream into stream, which buffers first char
-/// and decodes byte if the second comes up
+/// An abstraction which helps us turn a byte stream into a stream, which buffers
+/// first character and if the second comes up, decodes the byte and writes to the output
 struct HexDecoder {
     last: Option<u8>,
 }
@@ -111,14 +112,14 @@ impl HexDecoder {
         Self { last: None }
     }
 
-    fn write(&mut self, out: &mut impl Write, digit: u8) -> Result<(), io::Error> {
+    fn write(&mut self, mut out: impl Write, digit: u8) -> Result<(), io::Error> {
         match self.last.take() {
             Some(hi) => {
                 // we can safely unwrap because we already check if this is valid digit
                 let hi = from_hex_digit(hi).unwrap();
                 let lo = from_hex_digit(digit).unwrap();
                 let byte = hi * 16 + lo;
-                out.write(&[byte])?;
+                out.write_all(&[byte])?;
             }
             None => {
                 self.last.replace(digit);
